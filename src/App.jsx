@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Line } from "react-chartjs-2";
+import { Chart as ChartJS } from "chart.js/auto";
 
 function App() {
   const [weatherData, setWeatherData] = useState(null);
   const [airQuality, setAirQuality] = useState(null);
   const [userCity, setUserCity] = useState("");
   const [cityToSearch, setCityToSearch] = useState("");
+  const [airQualityHistory, setAirQualityHistory] = useState([]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -17,14 +20,24 @@ function App() {
           const weather = response.data;
           setWeatherData(weather);
 
-          // Obtener la calidad del aire usando las coordenadas
           const { lat, lon } = weather.coord;
           const airQualityResponse = await axios.get(
             `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0`
           );
-          
-          console.log(airQualityResponse.data);  // Verifica la estructura de la respuesta
-          setAirQuality(airQualityResponse.data.list[0].main.aqi);
+
+          const currentAirQuality = airQualityResponse.data.list[0].main.aqi;
+          setAirQuality(currentAirQuality);
+
+          // Actualiza el historial de la calidad del aire
+          setAirQualityHistory((prevHistory) => [
+            ...prevHistory,
+            { time: new Date().toLocaleTimeString(), aqi: currentAirQuality }
+          ]);
+
+          // Sistema de alertas basado en la calidad del aire
+          if (currentAirQuality >= 4) {
+            alert("¡Alerta! La calidad del aire es peligrosa.");
+          }
         } catch (error) {
           console.error("Error fetching weather or air quality data:", error);
         }
@@ -40,6 +53,19 @@ function App() {
 
   const handleSearch = () => {
     setCityToSearch(userCity);
+  };
+
+  const data = {
+    labels: airQualityHistory.map((entry) => entry.time),
+    datasets: [
+      {
+        label: "Índice de Calidad del Aire (AQI)",
+        data: airQualityHistory.map((entry) => entry.aqi),
+        fill: false,
+        borderColor: "rgba(75,192,192,1)",
+        tension: 0.1,
+      },
+    ],
   };
 
   return (
@@ -61,7 +87,10 @@ function App() {
           <p>Humedad: {weatherData.main.humidity}%</p>
 
           {airQuality ? (
-            <p>Calidad del aire (Índice de calidad del aire - AQI): {airQuality}</p>
+            <>
+              <p>Calidad del aire (Índice de calidad del aire - AQI): {airQuality}</p>
+              <Line data={data} />
+            </>
           ) : (
             <p>Cargando calidad del aire...</p>
           )}
