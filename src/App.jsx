@@ -11,28 +11,44 @@ function App() {
   const [airQualityHistory, setAirQualityHistory] = useState([]);
 
   useEffect(() => {
-    const fetchWeather = async () => {
+    const fetchWeatherAndAirQuality = async () => {
       if (cityToSearch) {
         try {
-          const response = await axios.get(
+          const weatherResponse = await axios.get(
             `https://api.openweathermap.org/data/2.5/weather?q=${cityToSearch}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
           );
-          const weather = response.data;
+          const weather = weatherResponse.data;
           setWeatherData(weather);
 
           const { lat, lon } = weather.coord;
-          const airQualityResponse = await axios.get(
-            `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0`
-          );
 
-          const currentAirQuality = airQualityResponse.data.list[0].main.aqi;
+          // Fetching historical air quality data for the last 7 days
+          const historicalAirQualityPromises = [];
+          for (let i = 0; i < 7; i++) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            const timestamp = Math.floor(date.getTime() / 1000);
+
+            const airQualityResponse = axios.get(
+              `https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${timestamp}&end=${timestamp + 86400}&appid=d001c75c49c087df4a01e98f695efaf0`
+            );
+
+            historicalAirQualityPromises.push(airQualityResponse);
+          }
+
+          const historicalData = await Promise.all(historicalAirQualityPromises);
+
+          const airQualityHistoryData = historicalData.map((response, index) => {
+            const aqi = response.data.list[0]?.main.aqi || 0;
+            const date = new Date();
+            date.setDate(date.getDate() - index);
+            return { time: date.toLocaleDateString(), aqi };
+          });
+
+          setAirQualityHistory(airQualityHistoryData);
+
+          const currentAirQuality = airQualityHistoryData[0].aqi;
           setAirQuality(currentAirQuality);
-
-          // Actualiza el historial de la calidad del aire
-          setAirQualityHistory((prevHistory) => [
-            ...prevHistory,
-            { time: new Date().toLocaleTimeString(), aqi: currentAirQuality }
-          ]);
 
           // Sistema de alertas basado en la calidad del aire
           if (currentAirQuality >= 4) {
@@ -44,7 +60,7 @@ function App() {
       }
     };
 
-    fetchWeather();
+    fetchWeatherAndAirQuality();
   }, [cityToSearch]);
 
   const handleChange = (event) => {
