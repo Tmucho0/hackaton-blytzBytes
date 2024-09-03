@@ -9,59 +9,67 @@ function App() {
   const [userCity, setUserCity] = useState("");
   const [cityToSearch, setCityToSearch] = useState("");
   const [airQualityHistory, setAirQualityHistory] = useState([]);
+  const [locationAllowed, setLocationAllowed] = useState(false);
 
   useEffect(() => {
-    const fetchWeatherAndAirQuality = async () => {
-      if (cityToSearch) {
-        try {
-          const weatherResponse = await axios.get(
-            `https://api.openweathermap.org/data/2.5/weather?q=${cityToSearch}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
+    const fetchWeatherAndAirQuality = async (lat, lon) => {
+      try {
+        const weatherResponse = await axios.get(
+          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
+        );
+        const weather = weatherResponse.data;
+        setWeatherData(weather);
+
+        const historicalAirQualityPromises = [];
+        for (let i = 0; i < 7; i++) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          const timestamp = Math.floor(date.getTime() / 1000);
+
+          const airQualityResponse = axios.get(
+            `https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${timestamp}&end=${timestamp + 86400}&appid=d001c75c49c087df4a01e98f695efaf0`
           );
-          const weather = weatherResponse.data;
-          setWeatherData(weather);
 
-          const { lat, lon } = weather.coord;
-
-          // Fetching historical air quality data for the last 7 days
-          const historicalAirQualityPromises = [];
-          for (let i = 0; i < 7; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const timestamp = Math.floor(date.getTime() / 1000);
-
-            const airQualityResponse = axios.get(
-              `https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${timestamp}&end=${timestamp + 86400}&appid=d001c75c49c087df4a01e98f695efaf0`
-            );
-
-            historicalAirQualityPromises.push(airQualityResponse);
-          }
-
-          const historicalData = await Promise.all(historicalAirQualityPromises);
-
-          const airQualityHistoryData = historicalData.map((response, index) => {
-            const aqi = response.data.list[0]?.main.aqi || 0;
-            const date = new Date();
-            date.setDate(date.getDate() - index);
-            return { time: date.toLocaleDateString(), aqi };
-          });
-
-          setAirQualityHistory(airQualityHistoryData);
-
-          const currentAirQuality = airQualityHistoryData[0].aqi;
-          setAirQuality(currentAirQuality);
-
-          // Sistema de alertas basado en la calidad del aire
-          if (currentAirQuality >= 4) {
-            alert("¡Alerta! La calidad del aire es peligrosa.");
-          }
-        } catch (error) {
-          console.error("Error fetching weather or air quality data:", error);
+          historicalAirQualityPromises.push(airQualityResponse);
         }
+
+        const historicalData = await Promise.all(historicalAirQualityPromises);
+
+        const airQualityHistoryData = historicalData.map((response, index) => {
+          const aqi = response.data.list[0]?.main.aqi || 0;
+          const date = new Date();
+          date.setDate(date.getDate() - index);
+          return { time: date.toLocaleDateString(), aqi };
+        });
+
+        setAirQualityHistory(airQualityHistoryData);
+
+        const currentAirQuality = airQualityHistoryData[0].aqi;
+        setAirQuality(currentAirQuality);
+
+        // Sistema de alertas basado en la calidad del aire
+        if (currentAirQuality >= 4) {
+          alert("¡Alerta! La calidad del aire es peligrosa.");
+        }
+      } catch (error) {
+        console.error("Error fetching weather or air quality data:", error);
       }
     };
 
-    fetchWeatherAndAirQuality();
-  }, [cityToSearch]);
+    if (cityToSearch) {
+      fetchWeatherAndAirQuality(null, null);
+    } else if (locationAllowed) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          fetchWeatherAndAirQuality(latitude, longitude);
+        },
+        (error) => {
+          console.error("Error obtaining location:", error);
+        }
+      );
+    }
+  }, [cityToSearch, locationAllowed]);
 
   const handleChange = (event) => {
     setUserCity(event.target.value);
@@ -69,6 +77,11 @@ function App() {
 
   const handleSearch = () => {
     setCityToSearch(userCity);
+  };
+
+  const handleUseCurrentLocation = () => {
+    setLocationAllowed(true);
+    setCityToSearch("");
   };
 
   const data = {
@@ -91,8 +104,10 @@ function App() {
         value={userCity}
         onChange={handleChange}
         placeholder="Ingrese el nombre de la ciudad"
+        disabled={locationAllowed}
       />
       <button onClick={handleSearch}>Buscar Ciudad</button>
+      <button onClick={handleUseCurrentLocation}>Usar Ubicación Actual</button>
 
       {weatherData ? (
         <div>
