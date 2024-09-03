@@ -3,8 +3,9 @@ import axios from "axios";
 
 function App() {
   const [weatherData, setWeatherData] = useState(null);
+  const [airQuality, setAirQuality] = useState(null);
   const [userCity, setUserCity] = useState("");
-  const [cityToSearch, setCityToSearch] = useState(""); 
+  const [cityToSearch, setCityToSearch] = useState("");
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -13,9 +14,17 @@ function App() {
           const response = await axios.get(
             `https://api.openweathermap.org/data/2.5/weather?q=${cityToSearch}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
           );
-          setWeatherData(response.data);
+          const weather = response.data;
+          setWeatherData(weather);
+
+          // Obtener la calidad del aire usando las coordenadas
+          const { lat, lon } = weather.coord;
+          const airQualityResponse = await axios.get(
+            `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0`
+          );
+          setAirQuality(airQualityResponse.data);
         } catch (error) {
-          console.error("Error fetching weather data:", error);
+          console.error("Error fetching weather or air quality data:", error);
         }
       }
     };
@@ -23,24 +32,37 @@ function App() {
     fetchWeather();
   }, [cityToSearch]);
 
-  
   const handleChange = (event) => {
     setUserCity(event.target.value);
   };
+
   const handleSearch = () => {
     setCityToSearch(userCity);
   };
 
   return (
     <div>
-      <input type="text" value={userCity} onChange={handleChange} placeholder="Ingrese el nombre de la ciudad" />
+      <input
+        type="text"
+        value={userCity}
+        onChange={handleChange}
+        placeholder="Ingrese el nombre de la ciudad"
+      />
       <button onClick={handleSearch}>Buscar Ciudad</button>
 
       {weatherData ? (
         <div>
-          <h1>{weatherData.name}</h1>
-          <p>Temperature: {weatherData.main.temp}°C</p>
-          <p>Weather: {weatherData.weather[0].description}</p>
+          <h1>Ciudad: {weatherData.name}</h1>
+          <p>Latitud: {weatherData.coord.lat}</p>
+          <p>Longitud: {weatherData.coord.lon}</p>
+          <p>Temperatura: {weatherData.main.temp}°C</p>
+          <p>Humedad: {weatherData.main.humidity}%</p>
+
+          {airQuality ? (
+            <p>Calidad del aire (Índice de calidad del aire - AQI): {airQuality.list[0].main.aqi}</p>
+          ) : (
+            <p>Cargando calidad del aire...</p>
+          )}
         </div>
       ) : (
         <p>Cargando...</p>
