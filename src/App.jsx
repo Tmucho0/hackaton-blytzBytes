@@ -20,9 +20,11 @@ function App() {
           // Obtener la calidad del aire usando las coordenadas
           const { lat, lon } = weather.coord;
           const airQualityResponse = await axios.get(
-            `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0`
+            `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0`
           );
-          setAirQuality(airQualityResponse.data);
+          
+          console.log(airQualityResponse.data);  // Verifica la estructura de la respuesta
+          setAirQuality(airQualityResponse.data.list[0].main.aqi);
         } catch (error) {
           console.error("Error fetching weather or air quality data:", error);
         }
@@ -59,7 +61,7 @@ function App() {
           <p>Humedad: {weatherData.main.humidity}%</p>
 
           {airQuality ? (
-            <p>Calidad del aire (Índice de calidad del aire - AQI): {airQuality.list[0].main.aqi}</p>
+            <p>Calidad del aire (Índice de calidad del aire - AQI): {airQuality}</p>
           ) : (
             <p>Cargando calidad del aire...</p>
           )}
