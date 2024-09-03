@@ -9,16 +9,26 @@ function App() {
   const [userCity, setUserCity] = useState("");
   const [cityToSearch, setCityToSearch] = useState("");
   const [airQualityHistory, setAirQualityHistory] = useState([]);
-  const [locationAllowed, setLocationAllowed] = useState(false);
+  const [useCurrentLocation, setUseCurrentLocation] = useState(false);
 
   useEffect(() => {
     const fetchWeatherAndAirQuality = async (lat, lon) => {
       try {
-        const weatherResponse = await axios.get(
-          `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
-        );
+        let weatherResponse;
+        if (lat && lon) {
+          weatherResponse = await axios.get(
+            `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
+          );
+        } else {
+          weatherResponse = await axios.get(
+            `https://api.openweathermap.org/data/2.5/weather?q=${cityToSearch}&appid=d001c75c49c087df4a01e98f695efaf0&units=metric`
+          );
+        }
+
         const weather = weatherResponse.data;
         setWeatherData(weather);
+
+        const { lat: latitude, lon: longitude } = weather.coord;
 
         const historicalAirQualityPromises = [];
         for (let i = 0; i < 7; i++) {
@@ -27,7 +37,7 @@ function App() {
           const timestamp = Math.floor(date.getTime() / 1000);
 
           const airQualityResponse = axios.get(
-            `https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${lat}&lon=${lon}&start=${timestamp}&end=${timestamp + 86400}&appid=d001c75c49c087df4a01e98f695efaf0`
+            `https://api.openweathermap.org/data/2.5/air_pollution/history?lat=${latitude}&lon=${longitude}&start=${timestamp}&end=${timestamp + 86400}&appid=d001c75c49c087df4a01e98f695efaf0`
           );
 
           historicalAirQualityPromises.push(airQualityResponse);
@@ -56,20 +66,24 @@ function App() {
       }
     };
 
-    if (cityToSearch) {
-      fetchWeatherAndAirQuality(null, null);
-    } else if (locationAllowed) {
+    if (useCurrentLocation) {
+      // Si se permite el uso de la ubicación actual, obtener las coordenadas
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           fetchWeatherAndAirQuality(latitude, longitude);
+          setUseCurrentLocation(false); // Resetear para permitir nuevas búsquedas
         },
         (error) => {
           console.error("Error obtaining location:", error);
+          setUseCurrentLocation(false); // Asegurarse de que el estado se reinicie incluso si hay un error
         }
       );
+    } else if (cityToSearch) {
+      // Si se ingresa una ciudad, buscar por nombre de ciudad
+      fetchWeatherAndAirQuality(null, null);
     }
-  }, [cityToSearch, locationAllowed]);
+  }, [cityToSearch, useCurrentLocation]);
 
   const handleChange = (event) => {
     setUserCity(event.target.value);
@@ -80,8 +94,8 @@ function App() {
   };
 
   const handleUseCurrentLocation = () => {
-    setLocationAllowed(true);
-    setCityToSearch("");
+    setUseCurrentLocation(true);
+    setCityToSearch(""); // Limpiar búsqueda previa
   };
 
   const data = {
@@ -104,7 +118,6 @@ function App() {
         value={userCity}
         onChange={handleChange}
         placeholder="Ingrese el nombre de la ciudad"
-        disabled={locationAllowed}
       />
       <button onClick={handleSearch}>Buscar Ciudad</button>
       <button onClick={handleUseCurrentLocation}>Usar Ubicación Actual</button>
